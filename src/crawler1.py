@@ -5,38 +5,24 @@ import ujson
 
 
 def getFileWriters( file_date, coin_names ):
-	ticker_fpath       = '../ticker-data/{0}/'.format( file_date )
-	orderbook_fpath    = '../orderbook-data/{0}/'.format( file_date )
-	transactions_fpath = '../transactions-data/{0}/'.format( file_date )
+	fws = dict()
 
-	if not os.path.isdir( ticker_fpath ):
-		os.mkdir( ticker_fpath )
+	for coin_name in coin_names:
+		fpath = '../deal-data/{0}/'.format( coin_name )
+		fname = '{0}.json'.format( file_date )
 
-	if not os.path.isdir( orderbook_fpath ):
-		os.mkdir( orderbook_fpath )
+		if not os.path.isdir( fpath ):
+			os.mkdir( fpath )
 
-	if not os.path.isdir( transactions_fpath ):
-		os.mkdir( transactions_fpath )
+		fws[ coin_name ] = open( fpath+fname, 'w', encoding='utf-8' )
 
-	ticker_fws       = dict()
-	orderbook_fws    = dict()
-	transactions_fws = dict()
-
-	for coin_name in coin_names:	
-		fname = '{0}.json'.format( coin_name )
-		ticker_fws[ coin_name ]       = open( ticker_fpath+fname, 'w', encoding='utf-8' )
-		orderbook_fws[ coin_name ]    = open( orderbook_fpath+fname, 'w', encoding='utf-8' )
-		transactions_fws[ coin_name ] = open( transactions_fpath+fname, 'w', encoding='utf-8' )
-
-	return ticker_fws, orderbook_fws, transactions_fws
+	return fws
 ###/getFileWriters
 
 
-def closeFileWriters( ticker_fws, orderbook_fws, transactions_fws, coin_names ):
-	for coin_name in coin_names:
-		ticker_fws[ coin_name ].close()
-		orderbook_fws[ coin_name ].close()
-		transactions_fws[ coin_name ].close()
+def closeFileWriters( fws ):
+	for coin_name in fws.keys():
+		fws[ coin_name ].close()
 #/closeFileWriters
 
 
@@ -50,14 +36,12 @@ def main():
 	coin_names = [ 'BTC', 'ETH', 'DASH', 'LTC', 'ETC', 'XRP', 'BCH', 
 	               'XMR', 'ZEC', 'QTUM', 'BTG', 'EOS' ]
 
-	trans_last_timestamp = dict()
+	prev_trans_datas = dict()
 	for coin_name in coin_names:
-		trans_last_timestamp[ coin_name ] = -1
+		prev_trans_datas[ coin_name ] = list()
 	
 	file_date, log_date = cmd.getReadableDate( time.time() )
 	cmd.printLogger( logger, 'info', log_date, 'Process start' )
-
-	#ticker_fws, orderbook_fws, transactions_fws = getFileWriters( file_date, coin_names )
 
 	is_first_loop = True
 	loop_cnt = 0
@@ -79,15 +63,16 @@ def main():
 		try: 
 			"""
 			ticker_data    = cmd.getTicker( 'ALL' )
-			orderbook_data = cmd.getOrderbook( 'ALL' )
 			"""
 
-			for coin_name in coin_names:
-				response = cmd.getRecentTransactions( coin_name, 0, 3 )
-				status = response.get( 'status', '-1' )
+			order_datas  = cmd.getOrderbook( 'ALL', 1, 20 ) 
+			order_status = order_datas.get( 'status', '-1' )
+			order_datas  = order_datas.get( 'data', {} )
 
+			for coin_idx, coin_name in enumerate( coin_names ):
+				response     = cmd.getRecentTransactions( coin_name, 1, 3 )
+				trans_status = response.get( 'status', '-1' )
 				print( response )
-				print( response[ 'data' ][ 0 ].keys() )
 				"""
 				if 'status' in response.keys():
 					status = response
@@ -99,9 +84,29 @@ def main():
 				else:
 					pass
 
-				new_trans_datas = cmd.resetTransDatas( trans_datas )
+				new_trans_datas, has_date_update, updated_ymd_date = cmd.resetTransDatas( trans_datas )
 				for new_trans_data in new_trans_datas:
 					print( new_trans_data )
+				"""
+				cmd.deleteDupDeal( prev_trans_datas[ coin_name ], new_trans_datas )
+
+				cur_order_datas = order_datas.get( coin_name, {} )
+				cur_order_datas = { 'bids': cur_order_datas.get( 'bids', [] ),
+				                    'asks': cur_order_datas.get( 'asks', [] ) }
+				fw_data = { 'trans_status': trans_status, 'trans_datas': new_trans_datas,
+				            'order_status': order_status, 'order_datas': cur_order_datas }
+
+				print( fw_data )
+				"""
+
+				"""
+				if is_first_loop:
+					fws = getFileWriters( updated_ymd_date, coin_names )
+					is_first_loop = False
+				elif has_date_update:
+					closeFileWriters( fws )
+					fws = getFileWriters( updated_ymd_date, coin_names )
+				"""
 
 				break
 
@@ -136,9 +141,8 @@ def main():
 
 		break
 
-	#closeFileWriters( ticker_fws, orderbook_fws, transactions_fws, coin_names )
+	#closeFileWriters( fws )
 ###/main
-
 
 if __name__ == '__main__':
 	main()
