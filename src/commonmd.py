@@ -66,9 +66,9 @@ def getOrderbook(currency):
 ###/getOrderbook
 
 
-def getRecentTransactions(currency):
+def getRecentTransactions(currency, offset, count):
 	resource_url = 'https://api.bithumb.com/public/recent_transactions/'
-	resource_uri = resource_url + currency
+	resource_uri = resource_url + currency + '?offset={0}&count={1}'.format( offset, count )
 	
 	response = requests.get(resource_uri).json()
 	
