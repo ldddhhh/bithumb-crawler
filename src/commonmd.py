@@ -9,7 +9,7 @@ def getLogger( log_fpath, log_fname, logger_name, stream_mode = False ):
 	logger = logging.getLogger( logger_name )
 
 
-	file_max_bytes = 10 * 1024 * 1024
+	file_max_bytes = 1024 * 1024
 	file_handler = logging.handlers.RotatingFileHandler( log_fpath + log_fname, 
 	                                                     maxBytes = file_max_bytes,
 																											 backupCount=2 )
