@@ -44,11 +44,15 @@ def main():
 	logger_name = 'crawler'
 	log_fpath   = '../logs/'
 	log_fname   = 'crawler.log'
-	stream_mode = False
+	stream_mode = True
 	logger = cmd.getLogger( log_fpath, log_fname, logger_name, stream_mode )
 
 	coin_names = [ 'BTC', 'ETH', 'DASH', 'LTC', 'ETC', 'XRP', 'BCH', 
 	               'XMR', 'ZEC', 'QTUM', 'BTG', 'EOS' ]
+
+	trans_last_timestamp = dict()
+	for coin_name in coin_names:
+		trans_last_timestamp[ coin_name ] = -1
 	
 	file_date, log_date = cmd.getReadableDate( time.time() )
 	cmd.printLogger( logger, 'info', log_date, 'Process start' )
@@ -79,8 +83,26 @@ def main():
 			"""
 
 			for coin_name in coin_names:
-				transactions_data = cmd.getRecentTransactions( coin_name, 0, 100 )
-				print( transactions_data )
+				response = cmd.getRecentTransactions( coin_name, 0, 3 )
+				status = response.get( 'status', '-1' )
+
+				print( response )
+				print( response[ 'data' ][ 0 ].keys() )
+				"""
+				if 'status' in response.keys():
+					status = response
+					if response
+				"""
+				trans_datas = list()
+				if 'data' in response.keys() and len( response[ 'data' ] ) > 0 :
+					trans_datas = response[ 'data' ]
+				else:
+					pass
+
+				new_trans_datas = cmd.resetTransDatas( trans_datas )
+				for new_trans_data in new_trans_datas:
+					print( new_trans_data )
+
 				break
 
 				#transactions_data = ujson.dumps( transactions_data, ensure_ascii=False )

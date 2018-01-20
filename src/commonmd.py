@@ -84,3 +84,35 @@ def getReadableDate( unixtime ):
 
 	return file_date, log_date
 ###/getRecentDate
+
+
+def resetTransDatas( trans_datas ):
+	new_trans_datas = list()
+
+	for trans_data in trans_datas:
+		req_type     = trans_data[ 'type' ]
+		price        = trans_data[ 'price' ]
+		units_traded = trans_data[ 'units_traded' ]
+		total        = trans_data[ 'total' ]
+		trans_date   = trans_data[ 'transaction_date' ]
+		compare_date = getCompareDate( trans_date )
+
+		new_trans_data = [ compare_date, trans_date, req_type, price, units_traded, total ]
+		new_trans_datas.append( new_trans_data )
+	
+	new_trans_datas = sorted( new_trans_datas, key=lambda k: k[ 0 ] )
+
+	return new_trans_datas
+###/resetTransDatas
+
+
+def getCompareDate( trans_date ):
+	hms_date = trans_date.strip().split( ' ' )[ 1 ].strip().split( ':' )
+	h        = int( hms_date[ 0 ] )
+	m        = int( hms_date[ 1 ] )
+	s        = int( hms_date[ 2 ] )
+
+	compare_date = ( h * 3600 ) + ( m * 60 ) + s
+
+	return compare_date
+###/getCompareDate
