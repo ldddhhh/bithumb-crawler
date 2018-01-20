@@ -30,22 +30,6 @@ def getLogger( log_fpath, log_fname, logger_name, stream_mode = False ):
 ###/getLogger
 
 
-def printLogger( logger, levelname, log_date, message ):
-	if levelname == 'info':
-		new_message = '{0} > {1}'.format( log_date, message )
-		logger.info( new_message )
-	elif levelname == 'warn':
-		new_message = '{0} > {1}'.format( log_date, message )
-		logger.warn( new_message )
-	elif levelname == 'error':
-		new_message = '{0} > {1}'.format( log_date, message )
-		logger.error( new_message )
-	else:
-		new_message = '{0} > {1}'.format( log_date, message )
-		logger.debug( new_message )
-###/printLogger
-
-
 def getTicker(currency):
 	resource_url = 'https://api.bithumb.com/public/ticker/'
 	resource_uri = resource_url + currency
@@ -86,7 +70,7 @@ def getReadableDate( unixtime ):
 ###/getRecentDate
 
 
-def resetTransDatas( trans_datas ):
+def resetTransDatas( trans_datas, prev_hms_date ):
 	new_trans_datas  = list() # 시간 순으로 정렬된 transactions data
 	has_date_update  = False  # 일자가 넘어가는지 유무
 	prev_ymd_date    = -1  # 일자가 넘어가는지 비교하기 위해 전 루프에서의 ymd 날짜 정보
@@ -99,10 +83,11 @@ def resetTransDatas( trans_datas ):
 		total        = trans_data[ 'total' ]
 		trans_date   = trans_data[ 'transaction_date' ]
 
-		cur_ymd_date, compare_date = getSplitedDate( trans_date )
+		cur_ymd_date, hms_date = getSplitedDate( trans_date )
 
-		new_trans_data = [ compare_date, trans_date, req_type, price, units_traded, total ]
-		new_trans_datas.append( new_trans_data )
+		if prev_hms_date < hms_date:
+			new_trans_data = [ hms_date, trans_date, req_type, price, units_traded, total ]
+			new_trans_datas.append( new_trans_data )
 
 		if loop_idx == 0:
 			prev_ymd_date = cur_ymd_date
@@ -131,7 +116,7 @@ def getSplitedDate( trans_date ):
 	m        = int( hms_date[ 1 ] )
 	s        = int( hms_date[ 2 ] )
 
-	compare_date = ( h * 3600 ) + ( m * 60 ) + s
+	hms_date = ( h * 3600 ) + ( m * 60 ) + s
 
-	return ymd_date, compare_date
+	return ymd_date, hms_date
 ###/getSplitedDate
