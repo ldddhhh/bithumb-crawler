@@ -62,6 +62,7 @@ def main():
 			sub_etime = time.time()
 			time_gap = max( sub_etime - sub_stime, 0 )
 			if time_gap < 1:
+				print( 'a' )
 				time.sleep( 1 - time_gap )
 
 			for coin_idx, coin_name in enumerate( coin_names ):
@@ -96,18 +97,20 @@ def main():
 
 				sub_etime = time.time()
 				time_gap = max( sub_etime - sub_stime, 0 )
-				if time_gap < 0.1:
-					time.sleep( 0.1 - time_gap )
+				if time_gap < 0.2:
+					print( 'b' )
+					time.sleep( 0.2 - time_gap )
 		except Exception as e:
 			logger.error( e )
 
 		end_time = time.time()
 		time_gap = max( end_time - start_time, 0 )
-		if time_gap < 3:
-			time.sleep( 3 - time_gap )
+		if time_gap < 5:
+			print( 'c' )
+			time.sleep( 5 - time_gap )
 
 		#if loop_cnt % 150 == 0:
-		if loop_cnt % 15 == 0:
+		if loop_cnt % 10 == 0:
 			logger.info( 'Normal processing' )
 			loop_cnt = 0
 			break

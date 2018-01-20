@@ -14,7 +14,7 @@ def getLogger( log_fpath, log_fname, logger_name, stream_mode = False ):
 	                                                     maxBytes = file_max_bytes,
 																											 backupCount=2 )
 
-	formatter = logging.Formatter( '[%(levelname)s] - %(message)s' )
+	formatter = logging.Formatter( '[%(levelname)s|%(filename)s:%(lineno)s] %(asctime)s > %(message)s' )
 	file_handler.setFormatter( formatter )
 	logger.addHandler( file_handler )
 
