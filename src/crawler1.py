@@ -30,7 +30,7 @@ def main():
 	logger_name = 'crawler'
 	log_fpath   = '../logs/'
 	log_fname   = 'crawler.log'
-	stream_mode = True
+	stream_mode = False 
 	logger = cmd.getLogger( log_fpath, log_fname, logger_name, stream_mode )
 
 	logger.info( 'Process start' )
@@ -62,7 +62,6 @@ def main():
 			sub_etime = time.time()
 			time_gap = max( sub_etime - sub_stime, 0 )
 			if time_gap < 1:
-				print( 'a' )
 				time.sleep( 1 - time_gap )
 
 			for coin_idx, coin_name in enumerate( coin_names ):
@@ -98,7 +97,6 @@ def main():
 				sub_etime = time.time()
 				time_gap = max( sub_etime - sub_stime, 0 )
 				if time_gap < 0.2:
-					print( 'b' )
 					time.sleep( 0.2 - time_gap )
 		except Exception as e:
 			logger.error( e )
@@ -106,17 +104,14 @@ def main():
 		end_time = time.time()
 		time_gap = max( end_time - start_time, 0 )
 		if time_gap < 5:
-			print( 'c' )
 			time.sleep( 5 - time_gap )
 
 		#if loop_cnt % 150 == 0:
-		if loop_cnt % 10 == 0:
+		if loop_cnt % 120 == 0:
 			logger.info( 'Normal processing' )
 			loop_cnt = 0
-			break
 	
 	closeFileWriters( fws )
-	print( 'Finished' )
 ###/main
 
 if __name__ == '__main__':
