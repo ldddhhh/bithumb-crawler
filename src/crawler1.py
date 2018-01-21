@@ -14,7 +14,7 @@ def getFileWriters( file_date, coin_names ):
 		if not os.path.isdir( fpath ):
 			os.mkdir( fpath )
 
-		fws[ coin_name ] = open( fpath+fname, 'w', encoding='utf-8' )
+		fws[ coin_name ] = open( fpath+fname, 'a', encoding='utf-8' )
 
 	return fws
 ###/getFileWriters
@@ -72,7 +72,7 @@ def main():
 				trans_datas  = response.get( 'data', [] )
 
 				if trans_status != '0000':
-					logger.warn( 'Invalid Transactions status: {0}'.format( trans_status ) )	
+					logger.warn( 'Invalid Transactions status: {0}'.format( response ) )	
 
 				new_trans_datas, has_date_update, updated_ymd_date = cmd.resetTransDatas( trans_datas, prev_hms_date )
 				if len( new_trans_datas ) > 0:
