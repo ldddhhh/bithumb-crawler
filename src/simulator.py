@@ -156,7 +156,7 @@ def buyOrNot( fast_ks, slow_ds ):
 		fast_k_inc_val = [ using_fast_ks[ -2 ] - using_fast_ks[ -3 ], using_fast_ks[ -1 ] - using_fast_ks[ -2 ] ]
 
 		if using_fast_ks[ -1 ] < 20:
-			if fast_k_inc_val[ 0 ] <= 0 and fast_k_inc_val[ 1 ] > 5: # fast_K_inc_val[ 1 ] > 매직넘버
+			if fast_k_inc_val[ 0 ] <= 0 and fast_k_inc_val[ 1 ] > 2: # fast_K_inc_val[ 1 ] > 매직넘버
 				if using_fast_ks[ -2 ] < using_slow_ds[ -2 ] and using_fast_ks[ -1 ] > using_slow_ds[ -1 ]:
 					buy_or_not = True
 
@@ -174,9 +174,14 @@ def sellOrNot( fast_ks, slow_ds ):
 
 	# 포맷: [ 전 단계 fast_k 증가치, 현재 단계 fast_k 증가치 ]
 	fast_k_inc_val = [ using_fast_ks[ -2 ] - using_fast_ks[ -3 ], using_fast_ks[ -1 ] - using_fast_ks[ -2 ] ]
+
+	# 포맷: [ 전 단계 slow_d 증가치, 현재 단계 slow_d 증가치 ]
+	slow_d_inc_val = [ using_slow_ds[ -2 ] - using_slow_ds[ -3 ], using_slow_ds[ -1 ] - using_slow_ds[ -2 ] ]
 	if fast_k_inc_val[ 1 ] < 0: # fast_K_inc_val[ 1 ] < 매직넘버
 		sell_or_not = True
-	elif using_fast_ks[ -1 ] >= 70:
+	elif using_fast_ks[ -1 ] <= using_slow_ds[ -1 ]-2:
+		sell_or_not = True
+	elif using_fast_ks[ -1 ] >= 75:
 		sell_or_not = True
 
 	return sell_or_not
@@ -314,13 +319,13 @@ def main():
 					out_sd = slow_ds[ '5m' ][ 15 ][ -2 ]
 					fw.write( '{0}\t{1}\t{2}\t{3}\n'.format( out_start_price, out_end_price, out_fk, out_sd ) )
 
-
 			if not has_bought:
 				buy_or_not = buyOrNot( fast_ks, slow_ds )
 				if buy_or_not:
 					has_bought, bought_price = letsBuy( trans_datas )
 					print( '### {0}번째 구매'.format( deal_cnt+1 ) )
 					print( '#   구매 평단가 = {0}, 투자금 = {1}'.format( bought_price, investment ) )
+					print( '#   구매 시점 = {0}'.format( trans_datas[ -1 ][ 1 ] ) )
 			else:
 				sell_or_not = sellOrNot( fast_ks, slow_ds )
 				if sell_or_not:
@@ -329,6 +334,7 @@ def main():
 					print( '#   판매 평단가 = {0}, 수익금 = {1}({2})'.format( sold_price, income, income_rate ) )
 					investment += income
 					print( '#   현재 잔여 투자금 = {0}'.format( investment ) )
+					print( '#   판매 시점 = {0}'.format( trans_datas[ -1 ][ 1 ] ) )
 					deal_cnt += 1
 					has_bought = False
 
