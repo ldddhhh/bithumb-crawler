@@ -69,8 +69,8 @@ def getReadableDate( unixtime ):
 	return file_date, log_date
 ###/getRecentDate
 
-# 회사수정: prev_hms_date -> prev_sec_time
-def resetTransDatas( trans_datas, prev_sec_time ):
+
+def resetTransDatas( trans_datas, prev_hms_date ):
 	new_trans_datas  = list() # 시간 순으로 정렬된 transactions data
 	has_date_update  = False  # 일자가 넘어가는지 유무
 	prev_ymd_date    = -1  # 일자가 넘어가는지 비교하기 위해 전 루프에서의 ymd 날짜 정보
@@ -83,17 +83,17 @@ def resetTransDatas( trans_datas, prev_sec_time ):
 		total        = trans_data[ 'total' ]
 		trans_date   = trans_data[ 'transaction_date' ]
 
-		cur_ymd_date, sec_time = getSplitedDate( trans_date )
+		cur_ymd_date, hms_date = getSplitedDate( trans_date )
 
-		if prev_sec_time < sec_time:
-			new_trans_data = [ sec_time, trans_date, req_type, price, units_traded, total ]
+		if prev_hms_date < hms_date:
+			new_trans_data = [ hms_date, trans_date, req_type, price, units_traded, total ]
 			new_trans_datas.append( new_trans_data )
 
 		if loop_idx == 0:
-			prev_ymd_date    = cur_ymd_date
+			prev_ymd_date = cur_ymd_date
 			updated_ymd_date = cur_ymd_date
 		elif prev_ymd_date != cur_ymd_date:
-			has_date_update  = True
+			has_date_update = True
 			updated_ymd_date = max( prev_ymd_date, cur_ymd_date )
 	
 	new_trans_datas = sorted( new_trans_datas, key=lambda k: k[ 0 ] )
@@ -101,32 +101,22 @@ def resetTransDatas( trans_datas, prev_sec_time ):
 	return new_trans_datas, has_date_update, updated_ymd_date
 ###/resetTransDatas
 
-### 회사 수정: hms_date -> sec_time
+
 def getSplitedDate( trans_date ):
 	splt_trans_date = trans_date.strip().split( ' ' )
 
 	ymd_date = splt_trans_date[ 0 ].strip().split( '-' )
-	Y        = ymd_date[ 0 ][ 2: ]
-	M        = ymd_date[ 1 ]
-	D        = ymd_date[ 2 ]
-	ymd_date = int( '{0}{1}{2}'.format( Y, M, D ) )
-
-	M = int( M )
-	D = int( D )
+	y        = ymd_date[ 0 ][ 2: ]
+	m        = ymd_date[ 1 ]
+	d        = ymd_date[ 2 ]
+	ymd_date = int( '{0}{1}{2}'.format( y, m, d ) )
 
 	hms_date = trans_date.strip().split( ' ' )[ 1 ].strip().split( ':' )
 	h        = int( hms_date[ 0 ] )
 	m        = int( hms_date[ 1 ] )
 	s        = int( hms_date[ 2 ] )
 
-	days_of_month = [ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ] # 각 월별 일수
+	hms_date = ( h * 3600 ) + ( m * 60 ) + s
 
-	M_day = 0
-	for sub_M in range( M ):
-		M_day += days_of_month[ sub_M ]	
-	M_sec = M_day * 24 * 60 * 60 
-
-	sec_time = ( M_sec ) + ( D * 24 * 60 * 60 ) + ( h * 60 * 60 ) + ( m * 60 ) + s
-
-	return ymd_date, sec_time
+	return ymd_date, hms_date
 ###/getSplitedDate

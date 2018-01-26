@@ -5,38 +5,42 @@ import ujson
 
 
 def getFileWriters( file_date, coin_names ):
-	ticker_fpath       = '../ticker-data/{0}/'.format( file_date )
-	orderbook_fpath    = '../orderbook-data/{0}/'.format( file_date )
-	transactions_fpath = '../transactions-data/{0}/'.format( file_date )
+	fws = dict()
 
-	if not os.path.isdir( ticker_fpath ):
-		os.mkdir( ticker_fpath )
+	for coin_name in coin_names:
+		fpath = '../deal-data/{0}/'.format( coin_name )
+		fname = '{0}.json'.format( file_date )
 
-	if not os.path.isdir( orderbook_fpath ):
-		os.mkdir( orderbook_fpath )
+		if not os.path.isdir( fpath ):
+			os.mkdir( fpath )
 
-	if not os.path.isdir( transactions_fpath ):
-		os.mkdir( transactions_fpath )
+		fws[ coin_name ] = open( fpath+fname, 'a', encoding='utf-8' )
 
-	ticker_fws       = dict()
-	orderbook_fws    = dict()
-	transactions_fws = dict()
-
-	for coin_name in coin_names:	
-		fname = '{0}.json'.format( coin_name )
-		ticker_fws[ coin_name ]       = open( ticker_fpath+fname, 'w', encoding='utf-8' )
-		orderbook_fws[ coin_name ]    = open( orderbook_fpath+fname, 'w', encoding='utf-8' )
-		transactions_fws[ coin_name ] = open( transactions_fpath+fname, 'w', encoding='utf-8' )
-
-	return ticker_fws, orderbook_fws, transactions_fws
+	return fws
 ###/getFileWriters
 
 
-def closeFileWriters( ticker_fws, orderbook_fws, transactions_fws, coin_names ):
-	for coin_name in coin_names:
-		ticker_fws[ coin_name ].close()
-		orderbook_fws[ coin_name ].close()
-		transactions_fws[ coin_name ].close()
+def getFileWriter( file_date, coin_name ):
+	fpath = '../deal-data/{0}/'.format( coin_name )
+	fname = '{0}.json'.format( file_date )
+
+	if not os.path.isdir( fpath ):
+		os.mkdir( fpath )
+
+	fw = open( fpath+fname, 'a', encoding='utf-8' )
+
+	return fw
+###/getFileWriter
+
+
+def closeFileWriters( fws ):
+	for coin_name in fws.keys():
+		fws[ coin_name ].close()
+#/closeFileWriters
+
+
+def closeFileWriter( fw ):
+	fw.close()
 #/closeFileWriters
 
 
@@ -44,69 +48,94 @@ def main():
 	logger_name = 'crawler'
 	log_fpath   = '../logs/'
 	log_fname   = 'crawler.log'
-	stream_mode = False
+	stream_mode = False 
 	logger = cmd.getLogger( log_fpath, log_fname, logger_name, stream_mode )
+
+	logger.info( 'Process start' )
 
 	coin_names = [ 'BTC', 'ETH', 'DASH', 'LTC', 'ETC', 'XRP', 'BCH', 
 	               'XMR', 'ZEC', 'QTUM', 'BTG', 'EOS' ]
 
-	file_date, log_date = cmd.getReadableDate( time.time() )
-	cmd.printLogger( logger, 'info', log_date, 'Process start' )
-
-	ticker_fws, orderbook_fws, transactions_fws = getFileWriters( file_date, coin_names )
-
+	prev_sec_times = dict()
+	fws_dates      = dict()
+	for coin_name in coin_names:
+		prev_sec_times[ coin_name ] = -1
+		fws_dates[ coin_name ] = str()
+	
+	is_first_loop = True
 	loop_cnt = 0
+
 	while True:
 		start_time = time.time()
 
 		loop_cnt += 1
 	
-		cur_file_date, log_date = cmd.getReadableDate( start_time )
-		if file_date != cur_file_date:
-			cmd.printLogger( logger, 'info', log_date, 
-			                 'Date updated({0} to {1})'.format( file_date, cur_file_date ) )
-			file_date = cur_file_date
-			closeFileWriters( ticker_fws, orderbook_fws, transactions_fws, coin_names )
-			ticker_fws, orderbook_fws, transactions_fws = getFileWriters( file_date, coin_names )
-
 		try: 
-			ticker_data    = cmd.getTicker( 'ALL' )
-			orderbook_data = cmd.getOrderbook( 'ALL' )
+			sub_stime = time.time()
 
-			for coin_name in coin_names:
-				transactions_data = cmd.getRecentTransactions( coin_name )
-				transactions_data = ujson.dumps( transactions_data, ensure_ascii=False )
-				transactions_fws[ coin_name ].write( '{0}\n'.format( transactions_data ) )
+			order_datas  = cmd.getOrderbook( 'ALL', 1, 5 ) 
+			order_status = order_datas.get( 'status', '-1' )
+			order_datas  = order_datas.get( 'data', {} )
 
-			for coin_name in coin_names:
-				sub_ticker_data = { 'status': ticker_data.get( 'status', -1 ),
-				                    'date': ticker_data.get( 'data', {} ).get( 'date', -1 ),
-														'data': ticker_data.get( 'data', {} ).get( coin_name, {} ) }
-				sub_ticker_data = ujson.dumps( sub_ticker_data, ensure_ascii=False )
-				ticker_fws[ coin_name ].write( '{0}\n'.format( sub_ticker_data ) )
+			sub_etime = time.time()
+			time_gap = max( sub_etime - sub_stime, 0 )
+			if time_gap < 1:
+				time.sleep( 1 - time_gap )
 
-				sub_orderbook_data = { 'status': orderbook_data.get( 'status', -1 ),
-				                       'date': orderbook_data.get( 'data', {} ).get( 'timestamp', -1 ),
-														   'data': orderbook_data.get( 'data', {} ).get( coin_name, {} ) }
-				sub_orderbook_data = ujson.dumps( sub_orderbook_data, ensure_ascii=False )
-				orderbook_fws[ coin_name ].write( '{0}\n'.format( sub_orderbook_data ) )
+			for coin_idx, coin_name in enumerate( coin_names ):
+				sub_stime = time.time()
+
+				response     = cmd.getRecentTransactions( coin_name, 0, 30 ) # 회사수정: offset 1 -> 0
+				trans_status = response.get( 'status', '-1' )
+				trans_datas  = response.get( 'data', [] )
+
+				if trans_status != '0000':
+					logger.warn( 'Invalid Transactions status: {0}'.format( response ) )	
+
+				prev_sec_time = prev_sec_times[ coin_name ]
+				new_trans_datas, has_date_update, updated_ymd_date = cmd.resetTransDatas( trans_datas, prev_sec_time )
+				if len( new_trans_datas ) > 0:
+					prev_sec_times[ coin_name ] = new_trans_datas[ -1 ][ 0 ]
+
+				cur_order_datas = order_datas.get( coin_name, {} )
+				cur_order_datas = { 'bids': cur_order_datas.get( 'bids', [] ),
+				                    'asks': cur_order_datas.get( 'asks', [] ) }
+				fw_data = { 'trans_status': trans_status, 'trans_datas': new_trans_datas,
+				            'order_status': order_status, 'order_datas': cur_order_datas }
+
+				if is_first_loop: # 최초 루프시 모든 코인의 fws 생성, 최초 1회 실행
+					fws = getFileWriters( updated_ymd_date, coin_names )
+					for coin_name in coin_names:
+						fws_dates[ coin_name ] = updated_ymd_date
+					is_first_loop = False
+				elif has_date_update and fws_dates[ coin_name ] != updated_ymd_date: # 각 코인별 fws 새로고침
+						fws[ coin_name ].close()
+						fws[ coin_name ] = getFileWriter( updated_ymd_date, coin_name )
+						fws_dates[ coin_name ] = updated_ymd_date
+						logger.info( '{0} coin date updated to {1}'.format( coin_name, updated_ymd_date ) )
+
+				fw_data = ujson.dumps( fw_data, ensure_ascii=False )
+				fws[ coin_name ].write( '{0}\n'.format( fw_data ) )
+
+				sub_etime = time.time()
+				time_gap = max( sub_etime - sub_stime, 0 )
+				if time_gap < 0.2:
+					time.sleep( 0.2 - time_gap )
 		except Exception as e:
-			cmd.printLogger( logger, 'error', log_date, e )
+			logger.error( e )
 
 		end_time = time.time()
 		time_gap = max( end_time - start_time, 0 )
-		if time_gap < 1:
-			time.sleep( 1 - time_gap )
+		if time_gap < 5:
+			time.sleep( 5 - time_gap )
 
-		if loop_cnt % 60 == 0:
-			cmd.printLogger( logger, 'info', log_date, 'Normal processing' )
+		#if loop_cnt % 150 == 0:
+		if loop_cnt % 120 == 0:
+			logger.info( 'Normal processing' )
 			loop_cnt = 0
-
-		break
-
-	closeFileWriters( ticker_fws, orderbook_fws, transactions_fws, coin_names )
+	
+	closeFileWriters( fws )
 ###/main
-
 
 if __name__ == '__main__':
 	main()
