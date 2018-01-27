@@ -54,8 +54,11 @@ def main():
 
 	logger.info( 'Process start' )
 
+	"""
 	coin_names = [ 'BTC', 'ETH', 'DASH', 'LTC', 'ETC', 'XRP', 'BCH', 
 	               'XMR', 'ZEC', 'QTUM', 'BTG', 'EOS' ]
+	"""
+	coin_names = [ 'BTC', 'ETH', 'DASH', 'XRP', 'ZEC', 'QTUM' ]
 
 	prev_sec_times = dict()
 	prev_ymd_dates = dict()
@@ -82,8 +85,8 @@ def main():
 
 			sub_etime = time.time()
 			time_gap = max( sub_etime - sub_stime, 0 )
-			if time_gap < 1:
-				time.sleep( 1 - time_gap )
+			if time_gap < 0.4:
+				time.sleep( 0.4 - time_gap )
 
 			for coin_idx, coin_name in enumerate( coin_names ):
 				sub_stime = time.time()
@@ -138,8 +141,8 @@ def main():
 
 		end_time = time.time()
 		time_gap = max( end_time - start_time, 0 )
-		if time_gap < 5:
-			time.sleep( 5 - time_gap )
+		if time_gap < 2:
+			time.sleep( 2 - time_gap )
 
 		#if loop_cnt % 150 == 0:
 		if loop_cnt % 120 == 0:
