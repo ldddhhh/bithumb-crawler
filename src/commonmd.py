@@ -70,11 +70,11 @@ def getReadableDate( unixtime ):
 ###/getRecentDate
 
 # 회사수정: prev_hms_date -> prev_sec_time
-def resetTransDatas( trans_datas, prev_sec_time ):
-	new_trans_datas  = list() # 시간 순으로 정렬된 transactions data
-	has_date_update  = False  # 일자가 넘어가는지 유무
-	prev_ymd_date    = -1  # 일자가 넘어가는지 비교하기 위해 전 루프에서의 ymd 날짜 정보
-	updated_ymd_date = -1  # 일자가 넘어 간 경우 새로 변경된 일자
+def resetTransDatas( trans_datas, prev_sec_time, prev_ymd_date ):
+	new_trans_datas = list() # 시간 순으로 정렬된 transactions data
+	has_date_update = False  # 일자가 넘어가는지 유무
+	cur_ymd_date    = -1  # 일자가 넘어 간 경우 새로 변경된 일자
+	cur_hms_date    = -1
 
 	for loop_idx, trans_data in enumerate( trans_datas ):
 		req_type     = trans_data[ 'type' ]
@@ -83,22 +83,18 @@ def resetTransDatas( trans_datas, prev_sec_time ):
 		total        = trans_data[ 'total' ]
 		trans_date   = trans_data[ 'transaction_date' ]
 
-		cur_ymd_date, sec_time = getSplitedDate( trans_date )
+		cur_ymd_date, cur_hms_date, cur_sec_time = getSplitedDate( trans_date )
 
-		if prev_sec_time < sec_time:
-			new_trans_data = [ sec_time, trans_date, req_type, price, units_traded, total ]
-			new_trans_datas.append( new_trans_data )
+		if prev_sec_time < cur_sec_time:
+			new_trans_datas.append( [ cur_sec_time, trans_date, req_type, price, units_traded, total ] )
 
-		if loop_idx == 0:
-			prev_ymd_date    = cur_ymd_date
-			updated_ymd_date = cur_ymd_date
-		elif prev_ymd_date != cur_ymd_date:
-			has_date_update  = True
-			updated_ymd_date = max( prev_ymd_date, cur_ymd_date )
+		if prev_ymd_date != cur_ymd_date:
+			has_date_update = True
+			cur_ymd_date    = max( prev_ymd_date, cur_ymd_date )
 	
 	new_trans_datas = sorted( new_trans_datas, key=lambda k: k[ 0 ] )
 
-	return new_trans_datas, has_date_update, updated_ymd_date
+	return new_trans_datas, has_date_update, cur_ymd_date, cur_hms_date
 ###/resetTransDatas
 
 ### 회사 수정: hms_date -> sec_time
@@ -118,15 +114,31 @@ def getSplitedDate( trans_date ):
 	h        = int( hms_date[ 0 ] )
 	m        = int( hms_date[ 1 ] )
 	s        = int( hms_date[ 2 ] )
+	hms_date = '{0}:{1}:{2}'.format( h, m, s )
 
 	days_of_month = [ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ] # 각 월별 일수
 
 	M_day = 0
-	for sub_M in range( M ):
+	for sub_M in range( M-1 ):
 		M_day += days_of_month[ sub_M ]	
 	M_sec = M_day * 24 * 60 * 60 
 
 	sec_time = ( M_sec ) + ( D * 24 * 60 * 60 ) + ( h * 60 * 60 ) + ( m * 60 ) + s
 
-	return ymd_date, sec_time
+	return ymd_date, hms_date, sec_time
 ###/getSplitedDate
+
+
+def getCurrentTimestamp():
+	now = datetime.datetime.now()
+	Y   = now.year
+	M   = now.month
+	D   = now.day
+	h   = now.hour
+	m   = now.minute
+	s   = now.second
+
+	cur_timestamp = '{0}-{1}-{2} {3}:{4}:{5}'.format( Y, M, D, h, m, s )
+
+	return cur_timestamp
+###/getCurrentTimestamp

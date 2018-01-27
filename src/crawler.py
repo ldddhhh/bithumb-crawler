@@ -1,5 +1,6 @@
 import commonmd as cmd
 import time
+import datetime
 import os
 import ujson
 
@@ -57,9 +58,11 @@ def main():
 	               'XMR', 'ZEC', 'QTUM', 'BTG', 'EOS' ]
 
 	prev_sec_times = dict()
+	prev_ymd_dates = dict()
 	fws_dates      = dict()
 	for coin_name in coin_names:
 		prev_sec_times[ coin_name ] = -1
+		prev_ymd_dates[ coin_name ] = -1
 		fws_dates[ coin_name ] = str()
 	
 	is_first_loop = True
@@ -93,26 +96,35 @@ def main():
 					logger.warn( 'Invalid Transactions status: {0}'.format( response ) )	
 
 				prev_sec_time = prev_sec_times[ coin_name ]
-				new_trans_datas, has_date_update, updated_ymd_date = cmd.resetTransDatas( trans_datas, prev_sec_time )
+				prev_ymd_date = prev_ymd_dates[ coin_name ] 
+
+				new_trans_datas, has_date_update, cur_ymd_date, cur_hms_date = cmd.resetTransDatas( trans_datas, 
+				                                                                                     prev_sec_time,
+				                                                                                     prev_ymd_date )
 				if len( new_trans_datas ) > 0:
 					prev_sec_times[ coin_name ] = new_trans_datas[ -1 ][ 0 ]
+
+				cur_timestamp   = cmd.getCurrentTimestamp()
+				trans_timestamp = '{0} {1}'.format( cur_ymd_date, cur_hms_date )
 
 				cur_order_datas = order_datas.get( coin_name, {} )
 				cur_order_datas = { 'bids': cur_order_datas.get( 'bids', [] ),
 				                    'asks': cur_order_datas.get( 'asks', [] ) }
+
 				fw_data = { 'trans_status': trans_status, 'trans_datas': new_trans_datas,
-				            'order_status': order_status, 'order_datas': cur_order_datas }
+				            'order_status': order_status, 'order_datas': cur_order_datas,
+										'timestamp': cur_timestamp,   'trans_timestamp': trans_timestamp }
 
 				if is_first_loop: # 최초 루프시 모든 코인의 fws 생성, 최초 1회 실행
-					fws = getFileWriters( updated_ymd_date, coin_names )
+					fws = getFileWriters( cur_ymd_date, coin_names )
 					for coin_name in coin_names:
-						fws_dates[ coin_name ] = updated_ymd_date
+						fws_dates[ coin_name ] = cur_ymd_date
 					is_first_loop = False
-				elif has_date_update and fws_dates[ coin_name ] != updated_ymd_date: # 각 코인별 fws 새로고침
+				elif has_date_update and fws_dates[ coin_name ] != cur_ymd_date: # 각 코인별 fws 새로고침
 						fws[ coin_name ].close()
-						fws[ coin_name ] = getFileWriter( updated_ymd_date, coin_name )
-						fws_dates[ coin_name ] = updated_ymd_date
-						logger.info( '{0} coin date updated to {1}'.format( coin_name, updated_ymd_date ) )
+						fws[ coin_name ] = getFileWriter( cur_ymd_date, coin_name )
+						fws_dates[ coin_name ] = cur_ymd_date
+						logger.info( '{0} coin date updated to {1}'.format( coin_name, cur_ymd_date ) )
 
 				fw_data = ujson.dumps( fw_data, ensure_ascii=False )
 				fws[ coin_name ].write( '{0}\n'.format( fw_data ) )
