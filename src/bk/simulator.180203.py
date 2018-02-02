@@ -1,6 +1,5 @@
 import ujson
 import time
-import sys
 
 time_idx     = { '1m': 0, '3m': 1, '5m': 2, '10m': 3 } # 시간 단위 to 인덱스
 trans_idx    = { 'sec_time': 0, 'trans_date': 1, 'deal_type': 2,
@@ -15,7 +14,9 @@ volume_idx   = { 'bid': 0, 'ask': 1, 'all': 2 } # 볼륨 차트 인덱스, bid:�
 max_candles_len = 100 # 캔들 데이터 최대 저장 개수
 max_volumes_len = 100 # 볼륨 데이터 최대 저장 개수
 
-def getCandleData( candle_datas, trans_datas, start_time, interval_time, max_len=100 ):
+sell_flag_cnt = [ 0, 0 ]
+
+def getCandleData( candle_datas, trans_datas, start_time, interval_time, max_len ):
 	"""
 	캔들 데이터 세팅
 	candle_datas: 캔들 데이터 변수
@@ -95,7 +96,6 @@ def getVolumeData( volume_datas, trans_datas, start_time, interval_time, max_len
 
 def getStochastics( candle_datas, period ):
 	global candle_idx
-
 	end_price_idx = candle_idx[ 'end_price' ]
 	min_price_idx = candle_idx[ 'min_price' ]
 	max_price_idx = candle_idx[ 'max_price' ]
@@ -162,7 +162,7 @@ def getVolumePower( volume_datas, period ):
 	vp = ( acc_bid_volume / acc_ask_volume ) * 100
 
 	return vp
-###/getVolumePower
+###/getVolumePoser
 
 
 def getRSI( candle_datas, period ):
@@ -202,117 +202,136 @@ def getRSI( candle_datas, period ):
 
 
 
-def buyOrNot( fast_ks, slow_ks, slow_ds, rsis ):
+def buyOrNot( fast_ks, slow_ks, slow_ds, vps ):
 	'''
 	현재 살지 지켜볼지 결정
 	'''
 	buy_or_not = False
 
-	stoch_using_time_base = '1m' # 스토캐스틱 지표에서 사용할 분봉 단위
+	stoch_using_time_base = '5m' # 스토캐스틱 지표에서 사용할 분봉 단위
 	stoch_using_period    = 10   # 스토캐스틱 지표에서 사용할 기간 단위
-	using_fast_ks = fast_ks[ stoch_using_time_base ][ stoch_using_period ][ :-1 ]
-	using_slow_ks = slow_ks[ stoch_using_time_base ][ stoch_using_period ][ :-1 ]
-	using_slow_ds = slow_ds[ stoch_using_time_base ][ stoch_using_period ][ :-1 ]
+	using_fast_ks = fast_ks[ stoch_using_time_base ][ stoch_using_period ]
+	using_slow_ks = slow_ks[ stoch_using_time_base ][ stoch_using_period ]
+	using_slow_ds = slow_ds[ stoch_using_time_base ][ stoch_using_period ]
 
-	"""
-	if len( using_slow_ks ) > 4 and len( using_slow_ds ) > 4:
+	using_vps = vps[ '5m' ][ 10 ]
+
+	if len( using_slow_ks ) > 4 and len( using_slow_ds ) > 4 and len( using_vps ) > 4:
 		# 포맷: [ 전 단계 slow_k 증가치, 현재 단계 slow_k 증가치 ]
 		slow_k_inc_val = [ using_slow_ks[ -2 ] - using_slow_ks[ -3 ], using_slow_ks[ -1 ] - using_slow_ks[ -2 ] ]
+		vp_inc_val = using_vps[ -1 ] - using_vps[ -2 ]
 
-		if using_slow_ks[ -1 ] < 30:
-			#if slow_k_inc_val[ 1 ] > 2: # fast_K_inc_val[ 1 ] > 매직넘버
-			if slow_k_inc_val[ 0 ] <= 0 and slow_k_inc_val[ 1 ] > 0: # fast_K_inc_val[ 1 ] > 매직넘버
-				if using_slow_ks[ -3 ] < using_slow_ds[ -3 ] and using_slow_ks[ -2 ] < using_slow_ds[ -2 ] and using_slow_ks[ -1 ] > using_slow_ds[ -1 ]:
-					buy_or_not = True
+		if using_slow_ks[ -1 ] <= 30: # and using_vps[ -1 ] <= 100:
+			if slow_k_inc_val[ 0 ] < 0 and slow_k_inc_val[ 1 ] > 0: # 
+				if using_slow_ks[ -2 ] <= using_slow_ds[ -2 ] and using_slow_ks[ -1 ] > using_slow_ds[ -1 ]: 
+					if vp_inc_val > 0:
+						buy_or_not = True
 	"""
-	
-	if len( using_fast_ks ) > 3 and len( using_slow_ds ) > 3:
+	if len( using_fast_ks ) > 4 and len( using_slow_ds ) > 4:
 		# 포맷: [ 전 단계 fast_k 증가치, 현재 단계 fast_k 증가치 ]
 		fast_k_inc_val = [ using_fast_ks[ -2 ] - using_fast_ks[ -3 ], using_fast_ks[ -1 ] - using_fast_ks[ -2 ] ]
 
-		if using_fast_ks[ -1 ] < 30:
-			#if fast_k_inc_val[ 1 ] > 0: # fast_K_inc_val[ 1 ] > 매직넘버
-			if fast_k_inc_val[ 0 ] <= 0 and fast_k_inc_val[ 1 ] > 0: # fast_K_inc_val[ 1 ] > 매직넘버
+		if using_fast_ks[ -1 ] < 50:
+			if fast_k_inc_val[ 0 ] <= 0 and fast_k_inc_val[ 1 ] > 2: # fast_K_inc_val[ 1 ] > 매직넘버
 				if using_fast_ks[ -2 ] < using_slow_ds[ -2 ] and using_fast_ks[ -1 ] > using_slow_ds[ -1 ]:
 					buy_or_not = True
+	"""
 
-	if buy_or_not:
-		print( 'fast ks: {0}'.format( using_fast_ks ) )
-		print( 'slow ds: {0}'.format( using_slow_ds ) )
-		print()
-	
 	return buy_or_not
 ###/buyOrNot
 
 
-def sellOrNot( fast_ks, slow_ks, slow_ds, rsis ):
+def sellOrNot( bought_price, cur_price, fast_ks, slow_ks, slow_ds, vps ):
+	global sell_flag_cnt
+
 	sell_or_not = False
 
-	stoch_using_time_base = '1m' # 스토캐스틱 지표에서 사용할 분봉 단위
+	stoch_using_time_base = '5m' # 스토캐스틱 지표에서 사용할 분봉 단위
 	stoch_using_period    = 10   # 스토캐스틱 지표에서 사용할 기간 단위
-	using_fast_ks = fast_ks[ stoch_using_time_base ][ stoch_using_period ][ :-1 ]
-	using_slow_ks = slow_ks[ stoch_using_time_base ][ stoch_using_period ][ :-1 ]
-	using_slow_ds = slow_ds[ stoch_using_time_base ][ stoch_using_period ][ :-1 ]
+	using_fast_ks = fast_ks[ stoch_using_time_base ][ stoch_using_period ]
+	using_slow_ks = slow_ks[ stoch_using_time_base ][ stoch_using_period ]
+	using_slow_ds = slow_ds[ stoch_using_time_base ][ stoch_using_period ]
+
+	using_vps = vps[ '5m' ][ 10 ]
 
 	# 포맷: [ 전 단계 fast_k 증가치, 현재 단계 fast_k 증가치 ]
 	fast_k_inc_val = [ using_fast_ks[ -2 ] - using_fast_ks[ -3 ], using_fast_ks[ -1 ] - using_fast_ks[ -2 ] ]
+
 	# 포맷: [ 전 단계 slow_k 증가치, 현재 단계 slow_k 증가치 ]
 	slow_k_inc_val = [ using_slow_ks[ -2 ] - using_slow_ks[ -3 ], using_slow_ks[ -1 ] - using_slow_ks[ -2 ] ]
+
 	# 포맷: [ 전 단계 slow_d 증가치, 현재 단계 slow_d 증가치 ]
 	slow_d_inc_val = [ using_slow_ds[ -2 ] - using_slow_ds[ -3 ], using_slow_ds[ -1 ] - using_slow_ds[ -2 ] ]
 
-	"""
-	if slow_k_inc_val[ 1 ] < 0: # fast_K_inc_val[ 1 ] < 매직넘버
-		sell_or_not = True
-	elif using_slow_ks[ -1 ] <= using_slow_ds[ -1 ]:
-		sell_or_not = True
-	elif using_slow_ks[ -1 ] >= 80:
-		sell_or_not = True
-	"""
+	vp_inc_val = using_vps[ -1 ] - using_vps[ -2 ]
 
-	print( 'fast ks: {0}'.format( using_fast_ks ) )
-	print( 'slow ds: {0}'.format( using_slow_ds ) )
-	print()
-	if fast_k_inc_val[ 1 ] < -10: # fast_K_inc_val[ 1 ] < 매직넘버
+	"""
+	if using_vps[ -1 ] < 100 or vp_inc_val < -5:
 		sell_or_not = True
-	elif using_fast_ks[ -1 ] <= using_slow_ds[ -1 ]-10 and slow_d_inc_val[ 1 ] < 5:
+	if slow_k_inc_val[ 1 ] < 0 and slow_d_inc_val[ 1 ] < 0: # fast_K_inc_val[ 1 ] < 매직넘버
+		print( 'A' )
 		sell_or_not = True
-	elif using_fast_ks[ -1 ] >= 80:
+	"""
+	if using_slow_ks[ -1 ] >= 30:
+		if slow_k_inc_val[ 1 ] < -3:
+			#print( slow_k_inc_val[ 1 ] )
+			#print( bought_price, cur_price )
+			if sell_flag_cnt[ 0 ] > 5:
+				print( 'A' )
+				sell_or_not = True
+			else:
+				sell_flag_cnt[ 0 ] += 1
+		elif slow_k_inc_val[ 1 ] < 0 and using_slow_ks[ -1 ] <= using_slow_ds[ -1 ]:
+			if sell_flag_cnt[ 1 ] > 5:
+				print( 'B' )
+				sell_or_not = True
+			else:
+				sell_flag_cnt[ 1 ] += 1
+		else:
+			sell_flag_cnt = [ 0 for _ in range( len( sell_flag_cnt ) ) ]
+	
+	if sell_or_not:
+		sell_flag_cnt = [ 0 for _ in range( len( sell_flag_cnt ) ) ]
+		
+	"""
+	elif using_slow_ks[ -1 ] >= 90:
+		print( 'D' )
 		sell_or_not = True
-
+	"""
 	"""
 	if fast_k_inc_val[ 1 ] < 0: # fast_K_inc_val[ 1 ] < 매직넘버
 		sell_or_not = True
-	elif using_fast_ks[ -1 ] <= using_slow_ds[ -1 ]:
+	elif using_fast_ks[ -1 ] <= using_slow_ds[ -1 ]-30:
 		sell_or_not = True
-	elif using_fast_ks[ -1 ] >= 80:
+	elif using_fast_ks[ -1 ] >= 75:
 		sell_or_not = True
-	"""
-
-	"""
-	print( '* fast ks: {0}'.format( fast_ks[ '5m' ][ 10 ] ) )
-	print( '* slow ds: {0}'.format( slow_ds[ '5m' ][ 10 ] ) )
 	"""
 
 	return sell_or_not
 ###/sellOrNot
 
 
-def letsBuy( price ):
-	bought_price = price
+def letsBuy( trans_datas, investment ):
+	cur_price    = int( trans_datas[ -1 ][ 3 ] )
+	bought_price = cur_price
+	has_coin_cnt = ( investment / cur_price ) * 0.9985 # 보유 코인 개수
 	has_bought   = True
 
-	return has_bought, bought_price
+	return has_bought, bought_price, has_coin_cnt
 ###/letsBuy
 
 
-def letsSell( price, bought_price, investment ):
-	sold_price = price
-	income = ( investment * ( sold_price / bought_price ) ) - investment
-	income_rate = ( income / investment ) * 100
+def letsSell( trans_datas, bought_price, investment, has_coin_cnt ):
+	cur_price  = int( trans_datas[ -1 ][ 3 ] )
+	sold_price = cur_price
+
+	new_investment = ( sold_price * has_coin_cnt ) * 0.9985 # 매도 후 투자금
+	income         = new_investment - investment # 수익금
+	income_rate    = ( income / investment ) * 100 # 수익륙
+
 	has_sold = True
 
-	return has_sold, sold_price, income, income_rate
+	return has_sold, sold_price, new_investment, income, income_rate
 ###/letsSell
 
 
@@ -324,18 +343,26 @@ def main():
 	global max_volumes_len 
 
 
-	### 차트 데이터 파일 라이터 초기화
-	chart_fpath  = '../test-output/'
-	chart_fnames = list()
-	chart_fws    = dict()
-	for time_base in time_idx.keys():
-		chart_fname = '{0}.tsv'.format( time_base )
-		chart_fws[ time_base ] = open( chart_fpath+chart_fname, 'w', encoding='utf-8' )
-		chart_fws[ time_base ].write( '시간\t시가\t종가\t거래건수\t매수볼륨\t매도볼륨\t총볼륨\t'
-							                    + 'fastK 5\tslowK 5\tslowD 5\tfaskK 10\tslowK 10\tslowD 10\t'
-							                    + 'fastK 15\tslowK 15\tslowD 15\tfaskK 20\tslowK 20\tslowD 20\t'
-																	+ 'vp 5\tvp 10\tvp 15\tvp 20\n' )
-	###/차트 데이터 파일 라이터 초기화
+	deal_cnt = 0
+	total_income = 0.0
+	inc_income = 0.0
+	dec_income = 0.0
+	inc_cnt = 0
+	dec_cnt = 0
+	inc_rate = 0.0
+	dec_rate = 0.0
+	bought_price = 0.0
+	has_bought = False
+	investment = 1000000 # 투자금
+	has_coin_cnt = 0
+
+
+	### 운영과 관련된 변수 초기화
+	empty_trans_datas_cnt     = 0     # 신규 트랜스 데이터가 연속적으로 없는 경우의 회수
+	invalid_trans_status_cnt  = 0     # 신규 트랜스 데이터 답변 상태가 연속적으로 에러인 경우의 회수
+	has_meet_first_trans_data = False # 유효한 트랜스 데이터를 처음으로 만났는지 유/무
+	###/운영과 관련된 변수 초기화
+
 
 
 	### 운영과 관련된 변수 초기화
@@ -354,7 +381,7 @@ def main():
 		start_times[ time_base ] = 0
 		volume_datas[ time_base ] = [ [ 0, 0, 0 ] ]
 
-	# 스토캐스틱 지표 변수 초기화
+	# 차트 지표 변수 초기화
 	fast_ks = dict()
 	slow_ks = dict()
 	slow_ds = dict()
@@ -370,12 +397,12 @@ def main():
 			slow_ks[ time_base ][ stoch_period ] = [ 0.0 ]
 			slow_ds[ time_base ][ stoch_period ] = [ 0.0 ]
 			vps[ time_base ][ stoch_period ]     = [ 0.0 ]
-	#/스토캐스틱 지표 변수 초기화
+	#/차트 지표 변수 초기화
 	###/지표 관련된 변수 초기화
 
-	data_fpath  = '../deal-data/XRP/'
-	data_fnames = [ '180129.json' ]
-	#data_fnames = [ '180127.json', '180128.json' ]
+	data_fpath = '../deal-data/XRP/'
+	data_fnames = [ '180127.json', '180128.json', '180129.json', '180130.json' ]
+	#data_fnames = [ '180128.json' ]
 
 	for data_fname in data_fnames:
 		with open( data_fpath+data_fname, 'r', encoding='utf-8' ) as fr:
@@ -411,7 +438,7 @@ def main():
 					invalid_trans_status_cnt = 0
 				###/거래 데이터 정합성 판단
 
-				
+
 				### 지표 생성 시점 체크
 				if not has_meet_first_trans_data:
 					if len( trans_datas ) > 0: # 처음으로 유효한 트랜스 데이터를 만난 경우
@@ -431,6 +458,7 @@ def main():
 					else: # 유효한 트랜스 데이터를 한번도 만나지 않은 경우
 						continue
 				###/지표 생성 시점 체크
+
 
 				### 분봉 별 시간 변경 체크 변수 초기화
 				time_updated = dict() # 분봉 기준으로 시간이 변경 됐는지 유무
@@ -475,33 +503,46 @@ def main():
 								vps[ time_base ][ stoch_period ][ -1 ]     = vp
 				###/스토캐스틱 지표 업데이트
 
-				
-				if len( candle_datas[ '10m' ] ) >= stoch_periods[ -1 ]:
-					for time_base in time_idx.keys():
-						if time_updated[ time_base ]:
-							out_line = str()
-							candle_cols = [ 'timestamp', 'start_price', 'end_price', 'deal_cnt' ]
-							volume_cols = [ 'bid', 'ask', 'all' ]
-							for candle_col in candle_cols:
-								out_line += '{0}\t'.format( candle_datas[ time_base ][ -2 ][ candle_idx[ candle_col ] ] )
-							for volume_col in volume_cols:
-								out_line += '{0}\t'.format( volume_datas[ time_base ][ -2 ][ volume_idx[ volume_col ] ] )
-							for stoch_period in stoch_periods:
-								fast_k = round( fast_ks[ time_base ][ stoch_period ][ -2 ] )
-								slow_k = round( slow_ks[ time_base ][ stoch_period ][ -2 ] )
-								slow_d = round( slow_ds[ time_base ][ stoch_period ][ -2 ] )
-								out_line += '{0}\t{1}\t{2}\t'.format( fast_k, slow_k, slow_d )
-							for stoch_period in stoch_periods:
-								vp = round( vps[ time_base ][ stoch_period ][ -2 ] )
-								out_line += '{0}\t'.format( vp )
 
-							out_line.strip()
-							out_line += '\n'
-							chart_fws[ time_base ].write( out_line )
+				### 매수 또는 매도 상황 체크
+				if not has_bought:
+					buy_or_not = buyOrNot( fast_ks, slow_ks, slow_ds, vps )
+					if buy_or_not:
+						has_bought, bought_price, has_coin_cnt = letsBuy( trans_datas, investment )
+						print( '### {0}번째 구매'.format( deal_cnt+1 ) )
+						print( '#   구매 평단가 = {0}, 투자금 = {1}'.format( bought_price, investment ) )
+						print( '#   구매 시점 = {0}'.format( candle_datas[ '5m' ][ -1 ][ candle_idx[ 'timestamp' ] ] ) )
+				else:
+					cur_price = int( trans_datas[ -1 ][ 3 ] )
+					sell_or_not = sellOrNot( bought_price, cur_price, fast_ks, slow_ks, slow_ds, vps )
+					if sell_or_not:
+						print( '### {0}번째 판매'.format( deal_cnt+1 ) )
+						has_sold, sold_price, investment, income, income_rate = letsSell( trans_datas, bought_price, 
+						                                                                  investment, has_coin_cnt )
+						str_income_rate = '{:3.2f}%'.format( income_rate )
+						print( '#   판매 평단가 = {0}, 수익금 = {1}({2})'.format( sold_price, income, str_income_rate ) )
+						print( '#   현재 잔여 투자금 = {0}'.format( investment ) )
+						print( '#   판매 시점 = {0}'.format( candle_datas[ '5m' ][ -1 ][ candle_idx[ 'timestamp' ] ] ) )
+						#print( '#   판매 시점 = {0}'.format( trans_datas[ -1 ][ 1 ] ) )
 
-	for time_base in time_idx.keys():
-		chart_fws[ time_base ].close()
+						if income > 0:
+							inc_cnt += 1
+						else:
+							dec_cnt += 1
+						if income_rate > 0:
+							inc_rate += income_rate
+						else:
+							dec_rate += income_rate
+
+						print( '#   수익 회수 = {0}, 손실 회수 = {1}'.format( inc_cnt, dec_cnt ) )
+						print( '#   수익 총 비율 = {0}, 손실 총 비율 = {1}'.format( inc_rate, dec_rate ) )
+						#print( '#   수익 평균 비율 = {0}, 손실 평균 비율 = {1}'.format( inc_rate/inc_cnt, dec_rate/dec_cnt ) )
+						print()
+						deal_cnt += 1
+						has_bought = False
+				###/매수 또는 매도 상황 체크
 ###/main
+
 
 
 if __name__ == '__main__':
