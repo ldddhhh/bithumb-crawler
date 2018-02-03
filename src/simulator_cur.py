@@ -1,6 +1,9 @@
 import ujson
 import time
 
+import indicators as idc
+
+
 time_idx     = { '1m': 0, '3m': 1, '5m': 2, '10m': 3 } # 시간 단위 to 인덱스
 trans_idx    = { 'sec_time': 0, 'trans_date': 1, 'deal_type': 2,
                  'price': 3, 'units_traded': 4, 'total': 5 } # 트랜스 데이터 인덱스
@@ -15,138 +18,6 @@ max_candles_len = 100 # 캔들 데이터 최대 저장 개수
 max_volumes_len = 100 # 볼륨 데이터 최대 저장 개수
 
 sell_flag_cnt = { '5m': [ 0, 0 ] }
-
-def getCandleData( candle_datas, trans_datas, start_time, interval_time, max_len ):
-	"""
-	캔들 데이터 세팅
-	candle_datas: 캔들 데이터 변수
-	trans_datas: 거래소 트랜잭션(거래) 데이터
-	start_time: 데이터 축적 시작 시간
-	interval_time: 데이터 분할 시간, 초단위
-	"""
-	global candle_idx
-	global trans_idx
-
-	time_updated = False
-
-	min_price = int()
-	max_price = int()
-
-	for data_idx, trans_data in enumerate( trans_datas ):
-		prev_min_price = candle_datas[ -1 ][ candle_idx[ 'min_price' ] ]
-		prev_max_price = candle_datas[ -1 ][ candle_idx[ 'max_price' ] ]
-
-		cur_price     = int( trans_data[ trans_idx[ 'price' ] ] ) # 현재 트랜스 데이터 평단가
-		cur_timestamp = trans_data[ trans_idx[ 'trans_date' ] ]   # 현재 트랜스 시간
-
-		### 저가, 고가 업데이트
-		cur_min_price = min( prev_min_price, cur_price )
-		cur_max_price = max( prev_max_price, cur_price )
-
-		cur_time = trans_data[ trans_idx[ 'sec_time' ] ] # 현재 초 시간
-
-		if cur_time >= start_time + interval_time: # 데이터 분할 시간 초과시
-			if len( candle_datas ) >= max_len: 
-				candle_datas = candle_datas[ 1: ]
-
-			candle_datas.append( [ cur_price, cur_price, cur_price, cur_price, 1, cur_timestamp ] )
-			time_updated = True
-			start_time += interval_time
-		else:
-			candle_datas[ -1 ][ candle_idx[ 'min_price' ] ] = cur_min_price # 저가 갱신
-			candle_datas[ -1 ][ candle_idx[ 'max_price' ] ] = cur_max_price # 고가 갱신
-			candle_datas[ -1 ][ candle_idx[ 'end_price' ] ] = cur_price     # 종가 갱신
-			candle_datas[ -1 ][ candle_idx[ 'deal_cnt' ] ] += 1             # 분봉 내 거래 건수 1추가
-
-	return candle_datas, time_updated, start_time
-###/getCandleData
-
-
-def getVolumeData( volume_datas, trans_datas, start_time, interval_time, max_len ):
-	"""
-	특정 구간(interval_time, sec) 내에서의 매도채결량, 매수채결량
-	"""
-	global volume_idx
-
-	time_updated = False
-
-	min_price = int()
-	max_price = int()
-	for data_idx, trans_data in enumerate( trans_datas ):
-		volume_type = trans_data[ 2 ]
-		volume      = float( trans_data[ 4 ] )
-
-		cur_time = trans_data[ 0 ]
-		if cur_time >= start_time + interval_time: # 데이터 분할 시간 초과시
-			if len( volume_datas ) >= max_len:
-				volume_datas = volume_datas[ 1: ]
-
-			new_volume_data = [ 0, 0, volume ]
-			new_volume_data[ volume_idx[ volume_type ] ] += volume
-			volume_datas.append( new_volume_data.copy() )
-			time_updated = True
-			start_time += interval_time
-		else:
-			volume_datas[ -1 ][ volume_idx[ volume_type ] ] += volume
-			volume_datas[ -1 ][ volume_idx[ 'all' ] ] += volume
-
-	return volume_datas, time_updated, start_time
-###/getVolumeData
-
-
-def getStochastics( candle_datas, period ):
-	global candle_idx
-	end_price_idx = candle_idx[ 'end_price' ]
-	min_price_idx = candle_idx[ 'min_price' ]
-	max_price_idx = candle_idx[ 'max_price' ]
-
-	min_prices = [ 0, 0, 0, 0, 0 ] # [ +0일 최저가, +1일 최저가, +2일 최저가, +3일 최저가, +4일 최저가 ]
-	max_prices = [ 0, 0, 0, 0, 0 ] # [ +0일 최고가, +1일 최고가, +2일 최고가, +3일 최고가, +4일 최고가 ]
-
-	for data_idx, candle_data in enumerate( candle_datas[ -(period+4): ] ):
-		min_price = candle_data[ min_price_idx ]
-		max_price = candle_data[ max_price_idx ]
-
-		if data_idx <= 4:
-			for sub_data_idx in range( data_idx ):
-				min_prices[ 4 - sub_data_idx ] = min( min_prices[ 4 - sub_data_idx ], min_price )
-				max_prices[ 4 - sub_data_idx ] = max( max_prices[ 4 - sub_data_idx ], max_price )
-
-			min_prices[ 4 - data_idx ] = min_price
-			max_prices[ 4 - data_idx ] = max_price
-		elif data_idx >= period:
-			for sub_data_idx in range( ( period+4 ) - data_idx ):
-				min_prices[ sub_data_idx ] = min( min_prices[ sub_data_idx ], min_price )
-				max_prices[ sub_data_idx ] = max( max_prices[ sub_data_idx ], max_price )
-		else:
-			for sub_data_idx in range( len( min_prices ) ):
-				min_prices[ sub_data_idx ] = min( min_prices[ sub_data_idx ], min_price )
-				max_prices[ sub_data_idx ] = max( max_prices[ sub_data_idx ], max_price )
-
-	# [ +0일 종가, +1일 종가, +2일 종가, +3일 종가, +4일 종가 ]
-	end_prices = [ candle_datas[ -1 ][ end_price_idx ], candle_datas[ -2 ][ end_price_idx ],
-	               candle_datas[ -3 ][ end_price_idx ], candle_datas[ -4 ][ end_price_idx ],
-								 candle_datas[ -5 ][ end_price_idx ] ]
-
-	fast_k = float()
-	try:
-		fast_k  = ( ( end_prices[ 0 ] - min_prices[ 0 ] ) / ( max_prices[ 0 ] - min_prices[ 0 ] ) ) * 100
-	except ZeroDivisionError as zde:
-		fast_k = -1000
-
-	slow_k = [ 0, 0, 0 ]
-	for i in range( 3 ):
-		for j in range( i, i+3 ):
-			try:
-				slow_k[ i ] += ( ( end_prices[ j ] - min_prices[ j ] ) / ( max_prices[ j ] - min_prices[ j ] ) ) * 100
-			except ZeroDivisionError as zde:
-				slow_k[ i ] = -1000
-		slow_k[ i ] /= 3
-
-	slow_d = sum( slow_k ) / 3
-
-	return fast_k, slow_k[ 0 ], slow_d
-###/getStochastics
 
 
 def getVolumePower( volume_datas, period ):
@@ -202,7 +73,7 @@ def getRSI( candle_datas, period ):
 
 
 
-def buyOrNot( fast_ks, slow_ks, slow_ds, vps ):
+def buyOrNot( fast_ks, slow_ks, slow_ds ):
 	'''
 	현재 살지 지켜볼지 결정
 	'''
@@ -212,7 +83,12 @@ def buyOrNot( fast_ks, slow_ks, slow_ds, vps ):
 
 	buy_votes_cnt = 0
 
+	stoch_using_time   = '5m'
 	stoch_using_period = 10   # 스토캐스틱 지표에서 사용할 기간 단위
+	using_fast_ks = fast_ks[ stoch_using_time ][ stoch_using_period ]
+	using_slow_ks = slow_ks[ time_base ][ stoch_using_period ]
+	using_slow_ds = slow_ds[ time_base ][ stoch_using_period ]
+
 	for time_base in [ '5m' ]:
 		using_fast_ks = fast_ks[ time_base ][ stoch_using_period ]
 		using_slow_ks = slow_ks[ time_base ][ stoch_using_period ]
@@ -377,41 +253,38 @@ def main():
 	###/운영과 관련된 변수 초기화
 
 
-
-	### 운영과 관련된 변수 초기화
-	empty_trans_datas_cnt     = 0     # 신규 트랜스 데이터가 연속적으로 없는 경우의 회수
-	invalid_trans_status_cnt  = 0     # 신규 트랜스 데이터 답변 상태가 연속적으로 에러인 경우의 회수
-	has_meet_first_trans_data = False # 유효한 트랜스 데이터를 처음으로 만났는지 유/무
-	###/운영과 관련된 변수 초기화
-
-
 	### 지표 관련된 변수 초기화
 	start_times  = dict() # 데이터 축적 기준 시간, 포맷: { 시간단위: 데이터 축적 시작 시간 }
 	candle_datas = dict() # 캔들 데이터, 포맷: { 시간단위: [ 단위별 캔들봉, ... ] }
 	volume_datas = dict() # 볼륨 데이터, 포맷: { 시간단위: [ [ 단위별 매수 볼륨, 단위별 매도 볼륨 ], ... ] }
 	for time_base in time_idx.keys():
 		candle_datas[ time_base ] = list()
+		volume_datas[ time_base ] = list()
 		start_times[ time_base ] = 0
-		volume_datas[ time_base ] = [ [ 0, 0, 0 ] ]
 
-	# 차트 지표 변수 초기화
+	# 스토캐스틱 관련 변수 초기화
 	fast_ks = dict()
 	slow_ks = dict()
 	slow_ds = dict()
-	vps     = dict()
-	stoch_periods = [ 5, 10, 15, 20 ]
+	stoch_periods = [ 5, 10, 15, 20 ] # 스토캐스틱 기간 리스트
 	for time_base in time_idx.keys():
 		fast_ks[ time_base ] = dict()
 		slow_ks[ time_base ] = dict()
 		slow_ds[ time_base ] = dict()
-		vps[ time_base ]     = dict()
 		for stoch_period in stoch_periods:
-			fast_ks[ time_base ][ stoch_period ] = [ 0.0 ]
-			slow_ks[ time_base ][ stoch_period ] = [ 0.0 ]
-			slow_ds[ time_base ][ stoch_period ] = [ 0.0 ]
-			vps[ time_base ][ stoch_period ]     = [ 0.0 ]
-	#/차트 지표 변수 초기화
+			fast_ks[ time_base ][ stoch_period ] = list()
+			slow_ks[ time_base ][ stoch_period ] = list()
+			slow_ds[ time_base ][ stoch_period ] = list()
+
+	# MFI 관련 변수 초기화
+	mfis = dict() 
+	mfi_periods = [ 5, 10, 15, 20 ] 
+	for time_base in time_idx.keys():
+		mfis[ time_base ] = dict()
+		for mfi_period in mfi_periods:
+			mfis[ time_base ][ mfi_period ] = list()
 	###/지표 관련된 변수 초기화
+
 
 	data_fpath = '../deal-data/XRP/'
 	data_fnames = [ '180128.json' ]
@@ -483,44 +356,78 @@ def main():
 
 				### 캔들 데이터 업데이트
 				for time_base in time_idx.keys():
-					interval = interval_sec[ time_base ] # 각 분봉에 해당하는 초
+					# 캔들 및 볼륨 데이터 생성 함수 파라미터 초기화
+					interval         = interval_sec[ time_base ] # 각 분봉에 해당하는 초
+					cur_candle_datas = candle_datas[ time_base ]
+					cur_volume_datas = volume_datas[ time_base ]
+					cur_start_time   = start_times[ time_base ]
 
-					candle_datas[ time_base ], time_updated[ time_base ], cur_start_time = getCandleData( candle_datas[ time_base ], trans_datas, start_times[ time_base ], interval, max_candles_len )
-					volume_datas[ time_base ], time_updated[ time_base ], cur_start_time = getVolumeData( volume_datas[ time_base ], trans_datas, start_times[ time_base], interval, max_volumes_len )
+					# 캔들 및 볼륨 데이터 생성
+					new_candle_datas, new_time_updated, new_start_time = idc.getCandleData( cur_candle_datas, trans_datas, 
+					                                                                        cur_start_time, interval, 
+																																									max_candles_len )
 
-					if time_updated[ time_base ]:
-						start_times[ time_base ] = cur_start_time
+					new_volume_datas, new_time_updated, new_start_time = idc.getVolumeData( cur_volume_datas, trans_datas, 
+					                                                                        cur_start_time, interval, 
+																																									max_volumes_len )
+					# 캔들 및 볼륨 데이터 업데이트
+					candle_datas[ time_base ] = new_candle_datas.copy()
+					volume_datas[ time_base ] = new_volume_datas.copy()
+					time_updated[ time_base ] = new_time_updated
+					start_times[ time_base ]  = new_start_time
 				###/캔들 데이터 업데이트
 
 
 				### 스토캐스틱 지표 업데이트
-				if len( candle_datas[ '10m' ] ) >= stoch_periods[ -1 ]:
-					for time_base in time_idx.keys():
-						for stoch_period in stoch_periods:
-							fast_k, slow_k, slow_d = getStochastics( candle_datas[ time_base ], stoch_period )
-							vp = getVolumePower( volume_datas[ time_base ], stoch_period )
+				if len( candle_datas[ '10m' ] ) >= stoch_periods[ -1 ]+5: # 스토캐스틱을 만들 캔들 데이터 구축 완료
+					for time_base in time_idx.keys(): # 분봉 루프
+						for stoch_period in stoch_periods: # 기간 루프
+							fast_k, slow_k, slow_d = idc.getStochastics( candle_datas[ time_base ], stoch_period )
 
-							if time_updated[ time_base ]:
+							if time_updated[ time_base ]: # 분봉이 업데이트 된 경우 스토캐스틱 리스트 길이 조절
 								if len( fast_ks[ time_base ][ stoch_period ] ) > 9:
 									fast_ks[ time_base ][ stoch_period ] = fast_ks[ time_base ][ stoch_period ][ 1: ]
 									slow_ks[ time_base ][ stoch_period ] = slow_ks[ time_base ][ stoch_period ][ 1: ]
 									slow_ds[ time_base ][ stoch_period ] = slow_ds[ time_base ][ stoch_period ][ 1: ]
-									vps[ time_base ][ stoch_period ]     = vps[ time_base ][ stoch_period ][ 1: ]
 								fast_ks[ time_base ][ stoch_period ].append( fast_k )
 								slow_ks[ time_base ][ stoch_period ].append( slow_k )
 								slow_ds[ time_base ][ stoch_period ].append( slow_d )
-								vps[ time_base ][ stoch_period ].append( vp )
+							elif len( fast_ks[ time_base ][ stoch_period ] ) == 0:
+								fast_ks[ time_base ][ stoch_period ].append( fast_k )
+								slow_ks[ time_base ][ stoch_period ].append( slow_k )
+								slow_ds[ time_base ][ stoch_period ].append( slow_d )
 							else:
 								fast_ks[ time_base ][ stoch_period ][ -1 ] = fast_k
 								slow_ks[ time_base ][ stoch_period ][ -1 ] = slow_k
 								slow_ds[ time_base ][ stoch_period ][ -1 ] = slow_d
-								vps[ time_base ][ stoch_period ][ -1 ]     = vp
 				###/스토캐스틱 지표 업데이트
 
 
+				### MFI 지표 업데이트
+				if len( candle_datas[ '10m' ] ) >= mfi_periods[ -1 ]+1:
+					for time_base in time_idx.keys(): # 분봉 루프
+						for mfi_period in mfi_periods: # 기간 루프
+							mfi = idc.getMFI( candle_datas[ time_base ], volume_datas[ time_base ], mfi_period )
+							
+							if time_updated[ time_base ]: # 분봉이 업데이트 된 경우 MFI 리스트 길이 조절
+								if len( mfis[ time_base ][ mfi_period ] ) > 9:
+									mfis[ time_base ][ mfi_period ] = mfis[ time_base ][ mfi_period ][ 1: ]
+								mfis[ time_base ][ mfi_period ].append( mfi )
+							elif len( mfis[ time_base ][ mfi_period ] ) == 0:
+								mfis[ time_base ][ mfi_period ].append( mfi )
+							else:
+								mfis[ time_base ][ mfi_period ][ -1 ] = mfi
+
+					print( mfis )
+					print()
+					time.sleep( 1 )
+				###/MFI 지표 업데이트
+
+
+				"""
 				### 매수 또는 매도 상황 체크
 				if not has_bought:
-					buy_or_not = buyOrNot( fast_ks, slow_ks, slow_ds, vps )
+					buy_or_not = buyOrNot( fast_ks, slow_ks, slow_ds )
 					if buy_or_not:
 						has_bought, bought_price, has_coin_cnt = letsBuy( trans_datas, investment )
 						print( '### {0}번째 구매'.format( deal_cnt+1 ) )
@@ -555,8 +462,8 @@ def main():
 						deal_cnt += 1
 						has_bought = False
 				###/매수 또는 매도 상황 체크
+				"""
 ###/main
-
 
 
 if __name__ == '__main__':

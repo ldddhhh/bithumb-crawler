@@ -149,6 +149,62 @@ def getStochastics( candle_datas, period ):
 ###/getStochastics
 
 
+def getStochasticsMax( candle_datas, period ):
+	global candle_idx
+
+	end_price_idx = candle_idx[ 'end_price' ]
+	min_price_idx = candle_idx[ 'min_price' ]
+	max_price_idx = candle_idx[ 'max_price' ]
+
+	min_prices = [ 0, 0, 0, 0, 0 ] # [ +0일 최저가, +1일 최저가, +2일 최저가, +3일 최저가, +4일 최저가 ]
+	max_prices = [ 0, 0, 0, 0, 0 ] # [ +0일 최고가, +1일 최고가, +2일 최고가, +3일 최고가, +4일 최고가 ]
+
+	for data_idx, candle_data in enumerate( candle_datas[ -(period+4): ] ):
+		min_price = candle_data[ min_price_idx ]
+		max_price = candle_data[ max_price_idx ]
+
+		if data_idx <= 4:
+			for sub_data_idx in range( data_idx ):
+				min_prices[ 4 - sub_data_idx ] = min( min_prices[ 4 - sub_data_idx ], min_price )
+				max_prices[ 4 - sub_data_idx ] = max( max_prices[ 4 - sub_data_idx ], max_price )
+
+			min_prices[ 4 - data_idx ] = min_price
+			max_prices[ 4 - data_idx ] = max_price
+		elif data_idx >= period:
+			for sub_data_idx in range( ( period+4 ) - data_idx ):
+				min_prices[ sub_data_idx ] = min( min_prices[ sub_data_idx ], min_price )
+				max_prices[ sub_data_idx ] = max( max_prices[ sub_data_idx ], max_price )
+		else:
+			for sub_data_idx in range( len( min_prices ) ):
+				min_prices[ sub_data_idx ] = min( min_prices[ sub_data_idx ], min_price )
+				max_prices[ sub_data_idx ] = max( max_prices[ sub_data_idx ], max_price )
+
+	# [ +0일 종가, +1일 종가, +2일 종가, +3일 종가, +4일 종가 ]
+	end_prices = [ candle_datas[ -1 ][ end_price_idx ], candle_datas[ -2 ][ end_price_idx ],
+	               candle_datas[ -3 ][ end_price_idx ], candle_datas[ -4 ][ end_price_idx ],
+								 candle_datas[ -5 ][ end_price_idx ] ]
+
+	fast_k = float()
+	try:
+		fast_k  = ( ( end_prices[ 0 ] - min_prices[ 0 ] ) / ( max_prices[ 0 ] - min_prices[ 0 ] ) ) * 100
+	except ZeroDivisionError as zde:
+		fast_k = -1000
+
+	slow_k = [ 0, 0, 0 ]
+	for i in range( 3 ):
+		for j in range( i, i+3 ):
+			try:
+				slow_k[ i ] += ( ( end_prices[ j ] - min_prices[ j ] ) / ( max_prices[ j ] - min_prices[ j ] ) ) * 100
+			except ZeroDivisionError as zde:
+				slow_k[ i ] = -1000
+		slow_k[ i ] /= 3
+
+	slow_d = sum( slow_k ) / 3
+
+	return fast_k, slow_k[ 0 ], slow_d
+###/getStochastics
+
+
 def getVolumePower( volume_datas, period ):
 	global volume_idx 
 
@@ -331,7 +387,7 @@ def main():
 	for time_base in time_idx.keys():
 		chart_fname = '{0}.tsv'.format( time_base )
 		chart_fws[ time_base ] = open( chart_fpath+chart_fname, 'w', encoding='utf-8' )
-		chart_fws[ time_base ].write( '시간\t시가\t종가\t거래건수\t매수볼륨\t매도볼륨\t총볼륨\t'
+		chart_fws[ time_base ].write( '시간\t시가\t종가\t저가\t고가\t거래건수\t매수볼륨\t매도볼륨\t총볼륨\t'
 							                    + 'fastK 5\tslowK 5\tslowD 5\tfaskK 10\tslowK 10\tslowD 10\t'
 							                    + 'fastK 15\tslowK 15\tslowD 15\tfaskK 20\tslowK 20\tslowD 20\t'
 																	+ 'vp 5\tvp 10\tvp 15\tvp 20\n' )
@@ -374,7 +430,7 @@ def main():
 	###/지표 관련된 변수 초기화
 
 	data_fpath  = '../deal-data/XRP/'
-	data_fnames = [ '180129.json' ]
+	data_fnames = [ '180128.json' ]
 	#data_fnames = [ '180127.json', '180128.json' ]
 
 	for data_fname in data_fnames:
@@ -480,7 +536,7 @@ def main():
 					for time_base in time_idx.keys():
 						if time_updated[ time_base ]:
 							out_line = str()
-							candle_cols = [ 'timestamp', 'start_price', 'end_price', 'deal_cnt' ]
+							candle_cols = [ 'timestamp', 'start_price', 'end_price', 'min_price', 'max_price', 'deal_cnt' ]
 							volume_cols = [ 'bid', 'ask', 'all' ]
 							for candle_col in candle_cols:
 								out_line += '{0}\t'.format( candle_datas[ time_base ][ -2 ][ candle_idx[ candle_col ] ] )
